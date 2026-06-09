@@ -133,9 +133,29 @@ def calculate_damages(breach_type: str, contract_value: float) -> str:
         f"  Attorney's fees (~15%): ${attorney_fees:,.2f}\n"
         f"  Total estimated exposure: ${total:,.2f}"
     )
+    
 
 
-TOOLS = [search_legal_database, calculate_damages]
+
+@tool
+def check_statute_of_limitations(case_type: str) -> str:
+    """Return the limitation period (statute of limitations) for a given case type.
+    Supported case_type values (case‑insensitive):
+        - "contract" / "ucc" → 4 years
+        - "nda" / "trade_secret" → 5 years
+        - "labor" / "labour" → 3 years
+    Anything else returns a generic message.
+    """
+    ct = case_type.lower()
+    if ct in {"contract", "ucc", "breach"}:
+        return "Statute of limitations for contract breaches (UCC): 4 years."
+    if ct in {"nda", "trade_secret", "secret"}:
+        return "Statute of limitations for NDA / trade‑secret cases (DTSA): 5 years."
+    if ct in {"labor", "labour", "employment"}:
+        return "Statute of limitations for labor disputes (Vietnam Labor Code): 3 years."
+    return "No specific limitation period known for the given case type."
+
+TOOLS = [search_legal_database, calculate_damages, check_statute_of_limitations]
 
 QUESTION = "What are the legal consequences if a company breaches a non-disclosure agreement?"
 
@@ -146,7 +166,7 @@ async def main():
     print("=" * 70)
     print()
     print("[How it works]")
-    print("  1. LLM receives tools (search_legal_database, calculate_damages)")
+    print("  1. LLM receives tools")
     print("  2. LLM decides which tools to call and with what arguments")
     print("  3. We execute the tools and feed results back to the LLM")
     print("  4. LLM generates a final answer grounded in retrieved data")

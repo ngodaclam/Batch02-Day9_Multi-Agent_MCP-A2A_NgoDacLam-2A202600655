@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A2A Multi-Agent System Visualizer & Simulator</title>
+    <meta name="description" content="Hệ thống trực quan hóa và giả lập tương tác của các AI Agent phân tán sử dụng giao thức A2A qua HTTP và kết nối bằng LangGraph.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #070a13;
+            --bg-card: rgba(15, 22, 42, 0.65);
+            --bg-console: #0c1020;
+            --border-glow: rgba(99, 102, 241, 0.15);
+            
+            --primary: #4facfe;
+            --primary-glow: rgba(79, 172, 254, 0.4);
+            --secondary: #00f2fe;
+            --accent: #a855f7;
+            --accent-glow: rgba(168, 85, 247, 0.4);
+            
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(79, 172, 254, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.15) 0%, transparent 40%),
+                linear-gradient(to bottom, #070a13, #0a0e1a);
+            background-attachment: fixed;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-glow);
+        }
+
+        /* Header section */
+        header {
+            padding: 2.5rem 2rem 1.5rem 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px var(--primary-glow);
+            animation: pulse-glow 3s infinite alternate;
+        }
+
+        .logo-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        .logo-text h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text span {
+            font-size: 0.8rem;
+            color: var(--primary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            display: block;
+            margin-top: 2px;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .status-pill {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--success);
+            box-shadow: 0 0 10px var(--success);
+            animation: blink 1.5s infinite;
+        }
+
+        /* Container Layout */
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1100px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Sidebar: Inputs & Configs */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .glass-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            border-radius: 20px;
+            padding: 1.75rem;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            transition: var(--transition);
+        }
+
+        .glass-card:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(99, 102, 241, 0.05);
+        }
+
+        .card-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.75rem;
+        }
+
+        .card-title svg {
+            width: 18px;
+            height: 18px;
+            color: var(--primary);
+        }
+
+        /* Form elements */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(79, 172, 254, 0.15);
+        }
+
+        textarea.form-input {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        /* Buttons styling */
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            outline: none;
+            border: none;
+            transition: var(--transition);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: #000;
+            box-shadow: 0 4px 20px rgba(79, 172, 254, 0.25);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(79, 172, 254, 0.4);
+            filter: brightness(1.1);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--text-muted);
+        }
+
+        /* Agent Switches list */
+        .agent-status-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .agent-status-item:last-child {
+            border-bottom: none;
+        }
+
+        .agent-info-mini {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .agent-name-mini {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .agent-port-mini {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Switch Toggle button */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .4s;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: var(--text-muted);
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: rgba(16, 185, 129, 0.2);
+            border-color: var(--success);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+            background-color: var(--success);
+        }
+
+        /* Main Panel Layout */
+        .main-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* Visual Canvas Flow */
+        .canvas-card {
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .canvas-area {
+            flex-grow: 1;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 3rem 1.5rem;
+            position: relative;
+            min-height: 300px;
+        }
+
+        /* SVG lines canvas */
+        .svg-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .connection-line {
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 8 4;
+            transition: var(--transition);
+        }
+
+        .connection-line.active {
+            stroke: var(--primary);
+            stroke-width: 3;
+            animation: dash 30s linear infinite;
+        }
+
+        .connection-line.active-tax {
+            stroke: var(--secondary);
+            stroke-width: 3;
+            animation: dash 30s linear infinite;
+        }
+
+        .connection-line.active-compliance {
+            stroke: var(--accent);
+            stroke-width: 3;
+            animation: dash 30s linear infinite;
+        }
+
+        .connection-line.error {
+            stroke: var(--danger);
+            stroke-width: 2;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+
+        /* Nodes architecture */
+        .agent-node {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 2;
+            position: relative;
+            width: 130px;
+        }
+
+        .node-bubble {
+            width: 76px;
+            height: 76px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            transition: var(--transition);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            cursor: pointer;
+        }
+
+        .agent-node.online .node-bubble {
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .agent-node.offline .node-bubble {
+            border-color: var(--danger);
+            background: rgba(239, 68, 68, 0.05);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
+        }
+
+        .agent-node.active .node-bubble {
+            background: rgba(79, 172, 254, 0.15);
+            border-color: var(--primary);
+            box-shadow: 0 0 30px var(--primary-glow);
+            transform: scale(1.1);
+        }
+
+        .agent-node.active-tax .node-bubble {
+            background: rgba(0, 242, 254, 0.15);
+            border-color: var(--secondary);
+            box-shadow: 0 0 30px rgba(0, 242, 254, 0.4);
+            transform: scale(1.1);
+        }
+
+        .agent-node.active-compliance .node-bubble {
+            background: rgba(168, 85, 247, 0.15);
+            border-color: var(--accent);
+            box-shadow: 0 0 30px var(--accent-glow);
+            transform: scale(1.1);
+        }
+
+        .node-label {
+            margin-top: 12px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .node-badge {
+            margin-top: 4px;
+            font-size: 0.7rem;
+            font-family: 'Fira Code', monospace;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .agent-node.offline .node-badge {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .agent-node.active .node-badge {
+            background: rgba(79, 172, 254, 0.1);
+            color: var(--primary);
+            border-color: rgba(79, 172, 254, 0.2);
+        }
+
+        .registry-node {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        /* Flow container Layout spacing */
+        .flow-container {
+            display: flex;
+            width: 100%;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 5rem;
+        }
+
+        /* Console Output Card */
+        .console-card {
+            background: var(--bg-console);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 280px;
+            overflow: hidden;
+        }
+
+        .console-header {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 10px 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .console-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .console-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--primary);
+        }
+
+        .console-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .console-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: var(--transition);
+        }
+
+        .console-btn:hover {
+            color: var(--text-main);
+        }
+
+        .console-body {
+            flex-grow: 1;
+            padding: 1.25rem 1.5rem;
+            overflow-y: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .log-entry {
+            display: flex;
+            gap: 12px;
+            animation: fadeIn 0.2s ease-out forwards;
+        }
+
+        .log-time {
+            color: #4b5563;
+            flex-shrink: 0;
+        }
+
+        .log-tag {
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .log-msg {
+            color: #d1d5db;
+            word-break: break-all;
+        }
+
+        /* Tags color classes */
+        .tag-registry { color: var(--accent); }
+        .tag-customer { color: var(--primary); }
+        .tag-law { color: var(--primary); }
+        .tag-tax { color: var(--secondary); }
+        .tag-compliance { color: var(--accent); }
+        .tag-error { color: var(--danger); }
+        .tag-system { color: var(--success); }
+
+        /* Report Result Output Card */
+        .report-card {
+            border-left: 4px solid var(--primary);
+        }
+
+        .report-section {
+            margin-bottom: 1.5rem;
+            animation: slideUp 0.5s ease-out forwards;
+        }
+
+        .report-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .report-sec-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .report-sec-title-tax {
+            color: var(--secondary);
+        }
+
+        .report-sec-title-compliance {
+            color: var(--accent);
+        }
+
+        .report-sec-body {
+            font-size: 0.92rem;
+            line-height: 1.6;
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.02);
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .report-sec-body ul {
+            list-style-position: inside;
+            margin-left: 4px;
+        }
+
+        .report-sec-body li {
+            margin-bottom: 6px;
+        }
+
+        .report-sec-body li:last-child {
+            margin-bottom: 0;
+        }
+
+        .disclaimer {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-style: italic;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        /* Animation utilities */
+        @keyframes pulse-glow {
+            0% {
+                box-shadow: 0 0 15px rgba(79, 172, 254, 0.3);
+            }
+            100% {
+                box-shadow: 0 0 25px rgba(79, 172, 254, 0.6);
+            }
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Steps animation helper */
+        .step-info-box {
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 22, 42, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 6px 16px;
+            font-size: 0.8rem;
+            color: var(--primary);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+
+        .step-spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid transparent;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .step-info-box.hidden {
+            display: none;
+        }
+
+        /* Mock badge UI */
+        .mode-indicator {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: rgba(79, 172, 254, 0.1);
+            color: var(--primary);
+            border: 1px solid rgba(79, 172, 254, 0.2);
+        }
+
+        .mode-indicator.live {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation Header -->
+    <header>
+        <div class="logo-area">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/>
+                </svg>
+            </div>
+            <div class="logo-text">
+                <h1>A2A Multi-Agent Platform</h1>
+                <span>Legal Flow Visualizer</span>
+            </div>
+        </div>
+        
+        <div class="system-status">
+            <div class="mode-indicator" id="modeIndicator">SIMULATION MODE</div>
+            <div class="status-pill">
+                <div class="status-dot"></div>
+                <span id="systemStatusText">Active Network</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Dashboard -->
+    <div class="dashboard-container">
+        
+        <!-- Sidebar Controls -->
+        <div class="sidebar">
+            
+            <!-- Question Box -->
+            <div class="glass-card">
+                <div class="card-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Legal Query Input
+                </div>
+                
+                <div class="form-group">
+                    <label for="questionInput">Nhập câu hỏi cần phân tích pháp lý:</label>
+                    <textarea id="questionInput" class="form-input" placeholder="Nhập câu hỏi của bạn tại đây...">If a company breaks a contract and avoids taxes, what are the legal and regulatory consequences?</textarea>
+                </div>
+                
+                <button id="btnSimulate" class="btn btn-primary" onclick="startFlowSimulation()">
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Simulate Request Flow
+                </button>
+                
+                <button id="btnSendLive" class="btn btn-secondary" onclick="sendLiveQuery()">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Run Real Live Request
+                </button>
+            </div>
+
+            <!-- Configuration Options -->
+            <div class="glass-card">
+                <div class="card-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                    Agent Network Switch
+                </div>
+                
+                <div class="agent-status-item">
+                    <div class="agent-info-mini">
+                        <span class="agent-name-mini">Customer Agent</span>
+                        <span class="agent-port-mini">Port 10100</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="chkCustomer" checked disabled>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div class="agent-status-item">
+                    <div class="agent-info-mini">
+                        <span class="agent-name-mini">Law Agent</span>
+                        <span class="agent-port-mini">Port 10101</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="chkLaw" checked disabled>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div class="agent-status-item">
+                    <div class="agent-info-mini">
+                        <span class="agent-name-mini">Tax Agent</span>
+                        <span class="agent-port-mini">Port 10102</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="chkTax" checked onchange="toggleAgentStatus('Tax', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div class="agent-status-item">
+                    <div class="agent-info-mini">
+                        <span class="agent-name-mini">Compliance Agent</span>
+                        <span class="agent-port-mini">Port 10103</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="chkCompliance" checked onchange="toggleAgentStatus('Compliance', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; line-height: 1.4;">
+                    <span style="color: var(--warning)">* Note:</span> Click toggle to offline/online the agents. Used to simulate fallback routing decisions (Exercise 5.2).
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Panel Section -->
+        <div class="main-panel">
+            
+            <!-- SVG Network Graph Visualizer -->
+            <div class="glass-card canvas-card" id="visualizerCard">
+                <div class="card-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                    A2A Network Active Routing Topology
+                </div>
+                
+                <div class="canvas-area" id="canvasArea">
+                    <svg class="svg-lines" id="svgLines">
+                        <!-- Connection Lines will be drawn here dynamically -->
+                        <path id="lineClientToCustomer" class="connection-line" d="M 0 0" />
+                        <path id="lineCustomerToRegistry" class="connection-line" d="M 0 0" />
+                        <path id="lineCustomerToLaw" class="connection-line" d="M 0 0" />
+                        <path id="lineLawToRegistry" class="connection-line" d="M 0 0" />
+                        <path id="lineLawToTax" class="connection-line" d="M 0 0" />
+                        <path id="lineLawToCompliance" class="connection-line" d="M 0 0" />
+                    </svg>
+                    
+                    <!-- Step Overlay -->
+                    <div id="stepInfoBox" class="step-info-box hidden">
+                        <div class="step-spinner"></div>
+                        <span id="stepInfoText">Customer Agent querying Registry...</span>
+                    </div>
+                    
+                    <!-- Registry Node -->
+                    <div class="agent-node online registry-node" id="nodeRegistry" onclick="glowNode('Registry')">
+                        <div class="node-bubble">📂</div>
+                        <div class="node-label">Registry</div>
+                        <div class="node-badge">Port 10000</div>
+                    </div>
+                    
+                    <!-- Flow nodes layer -->
+                    <div class="flow-container">
+                        <!-- Client Node (Implicit representation) -->
+                        <div class="agent-node online" id="nodeClient">
+                            <div class="node-bubble">💻</div>
+                            <div class="node-label">Client</div>
+                            <div class="node-badge">test_client.py</div>
+                        </div>
+                        
+                        <!-- Customer Node -->
+                        <div class="agent-node online" id="nodeCustomer" onclick="glowNode('Customer')">
+                            <div class="node-bubble">🤖</div>
+                            <div class="node-label">Customer Agent</div>
+                            <div class="node-badge">Port 10100</div>
+                        </div>
+                        
+                        <!-- Law Node (Coordinator) -->
+                        <div class="agent-node online" id="nodeLaw" onclick="glowNode('Law')">
+                            <div class="node-bubble">⚖️</div>
+                            <div class="node-label">Law Agent</div>
+                            <div class="node-badge">Port 10101</div>
+                        </div>
+                        
+                        <!-- Specialist layer inside Law sub-connections -->
+                        <div style="display: flex; flex-direction: column; gap: 2rem;">
+                            <!-- Tax Agent -->
+                            <div class="agent-node online" id="nodeTax" onclick="glowNode('Tax')">
+                                <div class="node-bubble">💵</div>
+                                <div class="node-label">Tax Agent</div>
+                                <div class="node-badge">Port 10102</div>
+                            </div>
+                            
+                            <!-- Compliance Agent -->
+                            <div class="agent-node online" id="nodeCompliance" onclick="glowNode('Compliance')">
+                                <div class="node-bubble">🛡️</div>
+                                <div class="node-label">Compliance Agent</div>
+                                <div class="node-badge">Port 10103</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Real-time Console Log -->
+            <div class="glass-card console-card">
+                <div class="console-header">
+                    <div class="console-title">
+                        <div class="console-dot"></div>
+                        Agent Distributed Execution Logs (trace_id generator)
+                    </div>
+                    <div class="console-actions">
+                        <button class="console-btn" onclick="clearConsole()">Clear Logs</button>
+                    </div>
+                </div>
+                <div class="console-body" id="consoleBody">
+                    <div class="log-entry">
+                        <span class="log-time">[16:56:10]</span>
+                        <span class="log-tag tag-system">[System]</span>
+                        <span class="log-msg">Hệ thống visualizer khởi tạo thành công. Sẵn sàng giả lập hoặc chạy kết nối thực tế.</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Report Card -->
+            <div class="glass-card report-card" id="reportCard" style="display: none;">
+                <div class="card-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    Synthesized Legal Analysis Report
+                </div>
+                <div id="reportContainer">
+                    <!-- Dynamic analysis contents -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Logic JavaScript -->
+    <script>
+        // Store status of agents
+        const agentsStatus = {
+            Registry: true,
+            Client: true,
+            Customer: true,
+            Law: true,
+            Tax: true,
+            Compliance: true
+        };
+
+        // DOM elements cache
+        const domNodes = {
+            Registry: document.getElementById('nodeRegistry'),
+            Client: document.getElementById('nodeClient'),
+            Customer: document.getElementById('nodeCustomer'),
+            Law: document.getElementById('nodeLaw'),
+            Tax: document.getElementById('nodeTax'),
+            Compliance: document.getElementById('nodeCompliance')
+        };
+
+        // Positions helper to redraw dynamic SVG lines
+        function getCenterOfElement(el) {
+            const rect = el.getBoundingClientRect();
+            const canvasRect = document.getElementById('canvasArea').getBoundingClientRect();
+            return {
+                x: rect.left + rect.width / 2 - canvasRect.left,
+                y: rect.top + rect.height / 2 - canvasRect.top
+            };
+        }
+
+        // Draw connections between nodes
+        function updateAllConnectionLines() {
+            try {
+                const client = getCenterOfElement(domNodes.Client);
+                const customer = getCenterOfElement(domNodes.Customer);
+                const law = getCenterOfElement(domNodes.Law);
+                const registry = getCenterOfElement(domNodes.Registry);
+                const tax = getCenterOfElement(domNodes.Tax);
+                const compliance = getCenterOfElement(domNodes.Compliance);
+
+                // Set SVGs d-attributes
+                setLinePath('lineClientToCustomer', client, customer);
+                setLinePath('lineCustomerToRegistry', customer, registry);
+                setLinePath('lineCustomerToLaw', customer, law);
+                setLinePath('lineLawToRegistry', law, registry);
+                setLinePath('lineLawToTax', law, tax);
+                setLinePath('lineLawToCompliance', law, compliance);
+            } catch (e) {
+                // Resize or element rendering exception
+            }
+        }
+
+        function setLinePath(lineId, p1, p2) {
+            const line = document.getElementById(lineId);
+            // Draw a cubic curver or straight path
+            if (lineId.includes('Registry')) {
+                // Curved lines to Registry on top
+                const midX = (p1.x + p2.x) / 2;
+                const midY = (p1.y + p2.y) / 2 - 50; // Curve upwards
+                line.setAttribute('d', `M ${p1.x} ${p1.y} Q ${midX} ${midY} ${p2.x} ${p2.y}`);
+            } else {
+                line.setAttribute('d', `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`);
+            }
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', updateAllConnectionLines);
+        setTimeout(updateAllConnectionLines, 200);
+
+        // Toggle Agent status manually
+        function toggleAgentStatus(agent, online) {
+            agentsStatus[agent] = online;
+            const node = domNodes[agent];
+            
+            if (online) {
+                node.classList.remove('offline');
+                node.classList.add('online');
+                addLog('System', `Agent ${agent} is back ONLINE. Registered at http://localhost:${node.querySelector('.node-badge').innerText.split(' ')[1]}`);
+            } else {
+                node.classList.remove('online');
+                node.classList.add('offline');
+                addLog('System', `Agent ${agent} is OFFLINE (Process Stopped/Ctrl+C). Port ${node.querySelector('.node-badge').innerText.split(' ')[1]} is unreachable.`, 'tag-error');
+            }
+            updateAllConnectionLines();
+        }
+
+        // Add visual logs to console
+        function addLog(tag, msg, extraClass = '') {
+            const consoleBody = document.getElementById('consoleBody');
+            const now = new Date();
+            const timeStr = `[${now.toTimeString().split(' ')[0]}]`;
+            
+            let tagClass = 'tag-system';
+            if (tag === 'Registry') tagClass = 'tag-registry';
+            else if (tag === 'Customer') tagClass = 'tag-customer';
+            else if (tag === 'Law') tagClass = 'tag-law';
+            else if (tag === 'Tax') tagClass = 'tag-tax';
+            else if (tag === 'Compliance') tagClass = 'tag-compliance';
+            else if (tag === 'Error') tagClass = 'tag-error';
+
+            if (extraClass) tagClass = extraClass;
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <span class="log-time">${timeStr}</span>
+                <span class="log-tag ${tagClass}">[${tag}]</span>
+                <span class="log-msg">${msg}</span>
+            `;
+            consoleBody.appendChild(entry);
+            consoleBody.scrollTop = consoleBody.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('consoleBody').innerHTML = '';
+            addLog('System', 'Console logs cleared.');
+        }
+
+        // Make node glow on demand
+        function glowNode(agent) {
+            const node = domNodes[agent];
+            node.classList.add('active');
+            setTimeout(() => node.classList.remove('active'), 1500);
+        }
+
+        // Delay helper
+        const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+        // Generate static unique uuid for visual simulation
+        function generateUUID() {
+            return 'trace-' + Math.random().toString(36).substring(2, 15) + '-' + Math.random().toString(36).substring(2, 15);
+        }
+
+        // Reset visual paths & glows
+        function resetTopologyVisuals() {
+            document.querySelectorAll('.agent-node').forEach(node => {
+                node.classList.remove('active', 'active-tax', 'active-compliance');
+            });
+            document.querySelectorAll('.connection-line').forEach(line => {
+                line.classList.remove('active', 'active-tax', 'active-compliance', 'error');
+            });
+        }
+
+        // ==========================================
+        // 1. SIMULATE FLOW MODE (JavaScript Mock Engine)
+        // ==========================================
+        async function startFlowSimulation() {
+            document.getElementById('modeIndicator').innerText = "SIMULATION MODE";
+            document.getElementById('modeIndicator').className = "mode-indicator";
+            
+            const question = document.getElementById('questionInput').value;
+            if (!question.trim()) {
+                alert("Vui lòng nhập câu hỏi pháp lý!");
+                return;
+            }
+
+            resetTopologyVisuals();
+            const traceId = generateUUID();
+            const stepBox = document.getElementById('stepInfoBox');
+            const stepText = document.getElementById('stepInfoText');
+            
+            addLog('System', `Bắt đầu mô phỏng luồng request. Khởi tạo trace_id: "${traceId}"`);
+            
+            // Step 1: Client -> Customer Agent
+            stepBox.classList.remove('hidden');
+            stepText.innerText = "Client sending query to Customer Agent...";
+            domNodes.Client.classList.add('active');
+            document.getElementById('lineClientToCustomer').classList.add('active');
+            await sleep(1200);
+            
+            domNodes.Client.classList.remove('active');
+            domNodes.Customer.classList.add('active');
+            addLog('Customer', `Nhận request từ Client. Trace: ${traceId}, Depth: 0`);
+            addLog('Customer', `Tra cứu địa chỉ của 'Law Agent' qua Registry (Port 10000)`);
+            await sleep(1000);
+
+            // Step 2: Customer Agent -> Registry (Discover)
+            document.getElementById('lineCustomerToRegistry').classList.add('active');
+            domNodes.Registry.classList.add('active');
+            stepText.innerText = "Customer Agent discovering Law Agent via Registry...";
+            await sleep(1200);
+            
+            addLog('Registry', `Tìm thấy 'law-agent' đăng ký tại endpoint: http://localhost:10101`);
+            domNodes.Registry.classList.remove('active');
+            document.getElementById('lineCustomerToRegistry').classList.remove('active');
+            await sleep(800);
+
+            // Step 3: Customer Agent -> Law Agent
+            stepText.innerText = "Customer Agent delegating request to Law Agent (A2A)...";
+            document.getElementById('lineCustomerToLaw').classList.add('active');
+            domNodes.Law.classList.add('active');
+            await sleep(1500);
+            
+            addLog('Law', `Nhận request từ Customer Agent. Trace: ${traceId}, Depth: 1`);
+            addLog('Law', `Thực thi analyze_law (phân tích hợp đồng và luật kinh doanh chung)...`);
+            await sleep(1200);
+            
+            addLog('Law', `Thực thi check_routing. Cần sự hỗ trợ của các chuyên gia phụ trợ...`);
+            
+            // Check status of Tax and Compliance agents
+            const taxOnline = agentsStatus.Tax;
+            const complianceOnline = agentsStatus.Compliance;
+            
+            addLog('Law', `Phát hiện cần định tuyến: Tax = ${taxOnline ? 'cần' : 'cần nhưng agent sập'}, Compliance = ${complianceOnline ? 'cần' : 'cần nhưng agent sập'}`);
+            await sleep(1000);
+
+            // Step 4: Law Agent -> Registry (Discover Specialists)
+            stepText.innerText = "Law Agent lookup Tax & Compliance endpoints in Registry...";
+            document.getElementById('lineLawToRegistry').classList.add('active');
+            domNodes.Registry.classList.add('active');
+            await sleep(1500);
+            
+            addLog('Registry', `Đã trả về địa chỉ Tax Agent (http://localhost:10102) & Compliance Agent (http://localhost:10103)`);
+            domNodes.Registry.classList.remove('active');
+            document.getElementById('lineLawToRegistry').classList.remove('active');
+            await sleep(800);
+
+            // Step 5: Law Agent calls Tax & Compliance Agents in Parallel (Send API)
+            stepText.innerText = "Dispatching parallel requests to sub-agents (A2A)...";
+            
+            let taxResult = "";
+            let complianceResult = "";
+            
+            const promises = [];
+            
+            if (taxOnline) {
+                document.getElementById('lineLawToTax').classList.add('active-tax');
+                domNodes.Tax.classList.add('active-tax');
+                addLog('Tax', `Nhận request. Trace: ${traceId}, Depth: 2. Tiến hành phân tích luật thuế...`);
+                
+                promises.push(sleep(2000).then(() => {
+                    document.getElementById('lineLawToTax').classList.remove('active-tax');
+                    domNodes.Tax.classList.remove('active-tax');
+                    // Tax analysis constraints check (Exercise 5.3: <= 3 lines, bullet format)
+                    taxResult = "- Vi phạm trốn thuế doanh nghiệp chịu phạt hành chính lên tới 3 lần số thuế trốn (Điều 17 Nghị định 125).\n" +
+                                "- Có thể bị truy cứu trách nhiệm hình sự về tội trốn thuế (Điều 200 Bộ luật Hình sự).\n" +
+                                "- Các cá nhân trực tiếp ký duyệt quyết định chịu trách nhiệm liên đới.";
+                    addLog('Tax', `Hoàn thành phân tích thuế (3 dòng gạch đầu dòng). Phản hồi gửi về Law Agent.`);
+                }));
+            } else {
+                document.getElementById('lineLawToTax').classList.add('error');
+                addLog('Law', `Không thể kết nối đến Tax Agent tại http://localhost:10102. Lỗi: Connection Refused.`, 'tag-error');
+                taxResult = "[Tax analysis unavailable: WinError 10061 - Connection refused]";
+            }
+            
+            if (complianceOnline) {
+                document.getElementById('lineLawToCompliance').classList.add('active-compliance');
+                domNodes.Compliance.classList.add('active-compliance');
+                addLog('Compliance', `Nhận request. Trace: ${traceId}, Depth: 2. Tiến hành kiểm tra tuân thủ...`);
+                
+                promises.push(sleep(2500).then(() => {
+                    document.getElementById('lineLawToCompliance').classList.remove('active-compliance');
+                    domNodes.Compliance.classList.remove('active-compliance');
+                    complianceResult = "- Vi phạm nghĩa vụ công bố thông tin Ủy ban Chứng khoán (SEC/SSC) xử phạt hành chính.\n" +
+                                       "- Các sai phạm về quản trị sổ sách có thể kích hoạt các biện pháp thanh tra kiểm toán SOX.\n" +
+                                       "- Doanh nghiệp có nguy cơ bị đình chỉ giao dịch hoặc rút giấy phép hoạt động.";
+                    addLog('Compliance', `Hoàn thành phân tích tuân thủ. Phản hồi gửi về Law Agent.`);
+                }));
+            } else {
+                document.getElementById('lineLawToCompliance').classList.add('error');
+                addLog('Law', `Không thể kết nối đến Compliance Agent tại http://localhost:10103. Lỗi: Connection Refused.`, 'tag-error');
+                complianceResult = "[Compliance analysis unavailable: WinError 10061 - Connection refused]";
+            }
+            
+            await Promise.all(promises);
+            await sleep(800);
+            
+            // Step 6: Law Agent Aggregate
+            stepText.innerText = "Law Agent synthesizing all specialist reports...";
+            domNodes.Law.classList.add('active');
+            await sleep(1500);
+            
+            addLog('Law', `Hoàn thành tổng hợp (synthesize) phân tích. Gửi lại kết quả đầy đủ về Customer Agent.`);
+            domNodes.Law.classList.remove('active');
+            document.getElementById('lineCustomerToLaw').classList.remove('active');
+            await sleep(800);
+            
+            // Step 7: Customer Agent returns response
+            stepText.innerText = "Customer Agent delivering response to Client.";
+            domNodes.Customer.classList.add('active');
+            document.getElementById('lineClientToCustomer').classList.remove('active');
+            await sleep(1000);
+            
+            domNodes.Customer.classList.remove('active');
+            stepBox.classList.add('hidden');
+            addLog('System', `Hoàn thành xử lý request. Trace ID: "${traceId}"`, 'tag-system');
+            
+            // Build report HTML UI
+            buildReportUI(taxResult, complianceResult);
+        }
+
+        function buildReportUI(taxText, complianceText) {
+            const reportCard = document.getElementById('reportCard');
+            const reportContainer = document.getElementById('reportContainer');
+            
+            // Build tax output with specific format display
+            let taxHtml = '';
+            if (taxText.includes('Connection refused')) {
+                taxHtml = `<div class="report-sec-body" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.2)">${taxText}</div>`;
+            } else {
+                taxHtml = `<div class="report-sec-body">
+                    <ul>
+                        ${taxText.split('\n').map(line => `<li>${line.substring(2)}</li>`).join('')}
+                    </ul>
+                </div>`;
+            }
+            
+            // Build compliance output
+            let complianceHtml = '';
+            if (complianceText.includes('Connection refused')) {
+                complianceHtml = `<div class="report-sec-body" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.2)">${complianceText}</div>`;
+            } else {
+                complianceHtml = `<div class="report-sec-body">
+                    <ul>
+                        ${complianceText.split('\n').map(line => `<li>${line.substring(2)}</li>`).join('')}
+                    </ul>
+                </div>`;
+            }
+
+            reportContainer.innerHTML = `
+                <div class="report-section">
+                    <div class="report-sec-title">
+                        ⚖️ 1. Phân Tích Pháp Lý Hợp Đồng (Law Agent)
+                    </div>
+                    <div class="report-sec-body">
+                        Hành vi đơn phương chấm dứt hợp đồng trái pháp luật phát sinh trách nhiệm bồi thường thiệt hại thực tế theo Điều 360 Bộ luật Dân sự. Doanh nghiệp vi phạm có nghĩa vụ bồi thường các khoản lợi nhuận đáng lẽ được hưởng và các chi phí phát sinh nhằm ngăn ngừa thiệt hại cho bên bị vi phạm.
+                    </div>
+                </div>
+                
+                <div class="report-section">
+                    <div class="report-sec-title report-sec-title-tax">
+                        💵 2. Phân Tích Nghĩa Vụ Thuế (Tax Agent)
+                    </div>
+                    ${taxHtml}
+                </div>
+                
+                <div class="report-section">
+                    <div class="report-sec-title report-sec-title-compliance">
+                        🛡️ 3. Phân Tích Tuân Thủ Quy Chế (Compliance Agent)
+                    </div>
+                    ${complianceHtml}
+                </div>
+                
+                <div class="disclaimer">
+                    Khuyến cáo: Bản báo cáo tổng hợp pháp lý này chỉ mang tính chất tham khảo giáo trình. Vui lòng tham vấn luật sư có giấy phép hành nghề trước khi ra quyết định kinh doanh.
+                </div>
+            `;
+            
+            reportCard.style.display = 'block';
+            reportCard.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // ==========================================
+        // 2. LIVE MODE ENGINE (Direct Localhost CORS Fetch)
+        // ==========================================
+        async function sendLiveQuery() {
+            document.getElementById('modeIndicator').innerText = "LIVE AGENTS MODE";
+            document.getElementById('modeIndicator').className = "mode-indicator live";
+            
+            const question = document.getElementById('questionInput').value;
+            if (!question.trim()) {
+                alert("Vui lòng nhập câu hỏi pháp lý!");
+                return;
+            }
+
+            resetTopologyVisuals();
+            const stepBox = document.getElementById('stepInfoBox');
+            const stepText = document.getElementById('stepInfoText');
+            
+            addLog('System', `Gửi request LIVE đến Customer Agent (http://localhost:10100)...`);
+            stepBox.classList.remove('hidden');
+            stepText.innerText = "Connecting to localhost:10100/send-message...";
+            
+            // Visual feedback
+            domNodes.Client.classList.add('active');
+            document.getElementById('lineClientToCustomer').classList.add('active');
+
+            try {
+                // Try fetching /health check of customer agent first
+                const cardUrl = "http://localhost:10100/.well-known/agent.json";
+                const checkResp = await fetch(cardUrl, { method: 'GET', mode: 'cors' });
+                if (!checkResp.ok) throw new Error("Could not fetch agent card. HTTP error: " + checkResp.status);
+                
+                const card = await checkResp.json();
+                addLog('System', `Kết nối thành công đến: ${card.name} v${card.version}. Gửi truy vấn...`);
+                
+                // Build A2A Request structure (simple mock object conforming to API)
+                // Actually test_client.py sends to /send-message or similar endpoints.
+                // Let's call endpoint: http://localhost:10100/send-message (FastAPI standard endpoint of a2a app)
+                const payload = {
+                    id: generateUUID(),
+                    params: {
+                        message: {
+                            role: "user",
+                            parts: [{ root: { text: question } }],
+                            message_id: generateUUID(),
+                            context_id: generateUUID(),
+                            metadata: {
+                                trace_id: generateUUID(),
+                                delegation_depth: 0
+                            }
+                        }
+                    }
+                };
+                
+                stepText.innerText = "Chờ phản hồi từ hệ thống Agent thực tế (30-60s)...";
+                
+                const response = await fetch("http://localhost:10100/send-message", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    mode: 'cors'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Agent API returned error: ${response.status} ${response.statusText}`);
+                }
+                
+                const resJson = await response.json();
+                addLog('System', `Đã nhận phản hồi từ LIVE Agent!`, 'tag-system');
+                
+                // Extract text from SendMessageResponse
+                // Use a2a standard response structure extraction
+                let textResult = "";
+                if (resJson && resJson.result) {
+                    const result = resJson.result;
+                    if (result.parts) {
+                        textResult = result.parts.map(p => p.root ? p.root.text : (p.text || '')).join('\n');
+                    } else if (result.history) {
+                        // fallback
+                        const lastMsg = result.history[result.history.length - 1];
+                        if (lastMsg && lastMsg.parts) {
+                            textResult = lastMsg.parts.map(p => p.root ? p.root.text : (p.text || '')).join('\n');
+                        }
+                    }
+                }
+                
+                if (!textResult) {
+                    textResult = JSON.stringify(resJson);
+                }
+
+                addLog('Customer', `Kết quả nhận được: ${textResult.substring(0, 100)}...`);
+                
+                // Render raw live response to UI
+                const reportCard = document.getElementById('reportCard');
+                const reportContainer = document.getElementById('reportContainer');
+                
+                reportContainer.innerHTML = `
+                    <div class="report-section">
+                        <div class="report-sec-title">
+                            🟢 Kết quả từ Live Agent Network (FastAPI)
+                        </div>
+                        <div class="report-sec-body" style="white-space: pre-line; font-family: inherit;">
+                            ${textResult}
+                        </div>
+                    </div>
+                `;
+                reportCard.style.display = 'block';
+                reportCard.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (err) {
+                addLog('Error', `Lỗi kết nối Live Agent: ${err.message}`, 'tag-error');
+                addLog('Error', `Hãy chắc chắn rằng bạn đã chạy các Agent backend (sử dụng PowerShell script start_all.ps1) và các Agent đã được cấp quyền CORS.`, 'tag-error');
+                
+                // Alert popup warning
+                alert("Không thể kết nối đến Customer Agent ở port 10100.\n\nLý do: Các Agent chưa được chạy hoặc bị lỗi CORS.\n\nHệ thống sẽ tự động chuyển sang chế độ Mô Phỏng (Simulation Mode) để mô tả chi tiết.");
+                
+                // Fallback to simulation
+                startFlowSimulation();
+            } finally {
+                stepBox.classList.add('hidden');
+                resetTopologyVisuals();
+            }
+        }
+    </script>
+</body>
+</html>
