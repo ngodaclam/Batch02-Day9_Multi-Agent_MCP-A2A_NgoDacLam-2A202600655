@@ -26,6 +26,7 @@ packages = [
     "common",
     "customer_agent",
     "law_agent",
+    "legal_worker",
     "tax_agent",
     "compliance_agent",
     "stages",

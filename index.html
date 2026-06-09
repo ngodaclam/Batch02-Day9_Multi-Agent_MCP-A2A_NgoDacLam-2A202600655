@@ -418,6 +418,12 @@
             animation: dash 30s linear infinite;
         }
 
+        .connection-line.active-legal {
+            stroke: var(--success);
+            stroke-width: 3;
+            animation: dash 30s linear infinite;
+        }
+
         .connection-line.active-tax {
             stroke: var(--secondary);
             stroke-width: 3;
@@ -480,6 +486,13 @@
             background: rgba(79, 172, 254, 0.15);
             border-color: var(--primary);
             box-shadow: 0 0 30px var(--primary-glow);
+            transform: scale(1.1);
+        }
+
+        .agent-node.active-legal .node-bubble {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: var(--success);
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.4);
             transform: scale(1.1);
         }
 
@@ -638,6 +651,8 @@
         .tag-registry { color: var(--accent); }
         .tag-customer { color: var(--primary); }
         .tag-law { color: var(--primary); }
+        .tag-supervisor { color: var(--warning); }
+        .tag-legal { color: var(--success); }
         .tag-tax { color: var(--secondary); }
         .tag-compliance { color: var(--accent); }
         .tag-error { color: var(--danger); }
@@ -863,11 +878,22 @@
                 
                 <div class="agent-status-item">
                     <div class="agent-info-mini">
-                        <span class="agent-name-mini">Law Agent</span>
+                        <span class="agent-name-mini">Supervisor Agent</span>
                         <span class="agent-port-mini">Port 10101</span>
                     </div>
                     <label class="switch">
                         <input type="checkbox" id="chkLaw" checked disabled>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div class="agent-status-item">
+                    <div class="agent-info-mini">
+                        <span class="agent-name-mini">Legal Worker</span>
+                        <span class="agent-port-mini">Port 10104</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="chkLegal" checked onchange="toggleAgentStatus('Legal', this.checked)">
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -917,6 +943,7 @@
                         <path id="lineCustomerToRegistry" class="connection-line" d="M 0 0" />
                         <path id="lineCustomerToLaw" class="connection-line" d="M 0 0" />
                         <path id="lineLawToRegistry" class="connection-line" d="M 0 0" />
+                        <path id="lineLawToLegal" class="connection-line" d="M 0 0" />
                         <path id="lineLawToTax" class="connection-line" d="M 0 0" />
                         <path id="lineLawToCompliance" class="connection-line" d="M 0 0" />
                     </svg>
@@ -950,15 +977,22 @@
                             <div class="node-badge">Port 10100</div>
                         </div>
                         
-                        <!-- Law Node (Coordinator) -->
+                        <!-- Law Node (Supervisor) -->
                         <div class="agent-node online" id="nodeLaw" onclick="glowNode('Law')">
-                            <div class="node-bubble">⚖️</div>
-                            <div class="node-label">Law Agent</div>
+                            <div class="node-bubble">🧠</div>
+                            <div class="node-label">Supervisor Agent</div>
                             <div class="node-badge">Port 10101</div>
                         </div>
                         
-                        <!-- Specialist layer inside Law sub-connections -->
-                        <div style="display: flex; flex-direction: column; gap: 2rem;">
+                        <!-- Workers layer inside Law/Supervisor sub-connections -->
+                        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                            <!-- Legal Worker -->
+                            <div class="agent-node online" id="nodeLegal" onclick="glowNode('Legal')">
+                                <div class="node-bubble">⚖️</div>
+                                <div class="node-label">Legal Worker</div>
+                                <div class="node-badge">Port 10104</div>
+                            </div>
+
                             <!-- Tax Agent -->
                             <div class="agent-node online" id="nodeTax" onclick="glowNode('Tax')">
                                 <div class="node-bubble">💵</div>
@@ -1019,6 +1053,7 @@
             Client: true,
             Customer: true,
             Law: true,
+            Legal: true,
             Tax: true,
             Compliance: true
         };
@@ -1029,6 +1064,7 @@
             Client: document.getElementById('nodeClient'),
             Customer: document.getElementById('nodeCustomer'),
             Law: document.getElementById('nodeLaw'),
+            Legal: document.getElementById('nodeLegal'),
             Tax: document.getElementById('nodeTax'),
             Compliance: document.getElementById('nodeCompliance')
         };
@@ -1050,6 +1086,7 @@
                 const customer = getCenterOfElement(domNodes.Customer);
                 const law = getCenterOfElement(domNodes.Law);
                 const registry = getCenterOfElement(domNodes.Registry);
+                const legal = getCenterOfElement(domNodes.Legal);
                 const tax = getCenterOfElement(domNodes.Tax);
                 const compliance = getCenterOfElement(domNodes.Compliance);
 
@@ -1058,6 +1095,7 @@
                 setLinePath('lineCustomerToRegistry', customer, registry);
                 setLinePath('lineCustomerToLaw', customer, law);
                 setLinePath('lineLawToRegistry', law, registry);
+                setLinePath('lineLawToLegal', law, legal);
                 setLinePath('lineLawToTax', law, tax);
                 setLinePath('lineLawToCompliance', law, compliance);
             } catch (e) {
@@ -1108,7 +1146,8 @@
             let tagClass = 'tag-system';
             if (tag === 'Registry') tagClass = 'tag-registry';
             else if (tag === 'Customer') tagClass = 'tag-customer';
-            else if (tag === 'Law') tagClass = 'tag-law';
+            else if (tag === 'Supervisor' || tag === 'Law') tagClass = 'tag-supervisor';
+            else if (tag === 'Legal') tagClass = 'tag-legal';
             else if (tag === 'Tax') tagClass = 'tag-tax';
             else if (tag === 'Compliance') tagClass = 'tag-compliance';
             else if (tag === 'Error') tagClass = 'tag-error';
@@ -1149,10 +1188,10 @@
         // Reset visual paths & glows
         function resetTopologyVisuals() {
             document.querySelectorAll('.agent-node').forEach(node => {
-                node.classList.remove('active', 'active-tax', 'active-compliance');
+                node.classList.remove('active', 'active-legal', 'active-tax', 'active-compliance');
             });
             document.querySelectorAll('.connection-line').forEach(line => {
-                line.classList.remove('active', 'active-tax', 'active-compliance', 'error');
+                line.classList.remove('active', 'active-legal', 'active-tax', 'active-compliance', 'error');
             });
         }
 
@@ -1174,7 +1213,7 @@
             const stepBox = document.getElementById('stepInfoBox');
             const stepText = document.getElementById('stepInfoText');
             
-            addLog('System', `Bắt đầu mô phỏng luồng request. Khởi tạo trace_id: "${traceId}"`);
+            addLog('System', `Bắt đầu mô phỏng luồng request (Supervisor-Workers). Khởi tạo trace_id: "${traceId}"`);
             
             // Step 1: Client -> Customer Agent
             stepBox.classList.remove('hidden');
@@ -1186,94 +1225,110 @@
             domNodes.Client.classList.remove('active');
             domNodes.Customer.classList.add('active');
             addLog('Customer', `Nhận request từ Client. Trace: ${traceId}, Depth: 0`);
-            addLog('Customer', `Tra cứu địa chỉ của 'Law Agent' qua Registry (Port 10000)`);
+            addLog('Customer', `Tra cứu địa chỉ của 'Supervisor Agent' (Port 10101) qua Registry (Port 10000)`);
             await sleep(1000);
 
             // Step 2: Customer Agent -> Registry (Discover)
             document.getElementById('lineCustomerToRegistry').classList.add('active');
             domNodes.Registry.classList.add('active');
-            stepText.innerText = "Customer Agent discovering Law Agent via Registry...";
+            stepText.innerText = "Customer Agent discovering Supervisor Agent via Registry...";
             await sleep(1200);
             
-            addLog('Registry', `Tìm thấy 'law-agent' đăng ký tại endpoint: http://localhost:10101`);
+            addLog('Registry', `Tìm thấy 'law-agent' (Supervisor) tại endpoint: http://localhost:10101`);
             domNodes.Registry.classList.remove('active');
             document.getElementById('lineCustomerToRegistry').classList.remove('active');
             await sleep(800);
 
-            // Step 3: Customer Agent -> Law Agent
-            stepText.innerText = "Customer Agent delegating request to Law Agent (A2A)...";
+            // Step 3: Customer Agent -> Supervisor Agent
+            stepText.innerText = "Customer Agent delegating request to Supervisor Agent (A2A)...";
             document.getElementById('lineCustomerToLaw').classList.add('active');
             domNodes.Law.classList.add('active');
             await sleep(1500);
             
-            addLog('Law', `Nhận request từ Customer Agent. Trace: ${traceId}, Depth: 1`);
-            addLog('Law', `Thực thi analyze_law (phân tích hợp đồng và luật kinh doanh chung)...`);
+            addLog('Law', `[Supervisor] Nhận request từ Customer Agent. Trace: ${traceId}, Depth: 1`);
+            addLog('Law', `[Supervisor] Thực thi classify_question: Phân loại câu hỏi xem cần worker nào...`);
             await sleep(1200);
             
-            addLog('Law', `Thực thi check_routing. Cần sự hỗ trợ của các chuyên gia phụ trợ...`);
-            
-            // Check status of Tax and Compliance agents
+            // Check status of Legal, Tax and Compliance agents
+            const legalOnline = agentsStatus.Legal;
             const taxOnline = agentsStatus.Tax;
             const complianceOnline = agentsStatus.Compliance;
             
-            addLog('Law', `Phát hiện cần định tuyến: Tax = ${taxOnline ? 'cần' : 'cần nhưng agent sập'}, Compliance = ${complianceOnline ? 'cần' : 'cần nhưng agent sập'}`);
+            addLog('Law', `[Supervisor] Kết quả phân loại: Cần Legal (Hợp đồng) = ${legalOnline ? 'YES' : 'YES nhưng agent sập'}, Tax (Thuế) = ${taxOnline ? 'YES' : 'YES nhưng agent sập'}, Compliance (Tuân thủ) = ${complianceOnline ? 'YES' : 'YES nhưng agent sập'}`);
             await sleep(1000);
 
-            // Step 4: Law Agent -> Registry (Discover Specialists)
-            stepText.innerText = "Law Agent lookup Tax & Compliance endpoints in Registry...";
+            // Step 4: Supervisor Agent -> Registry (Discover Specialists)
+            stepText.innerText = "Supervisor Agent lookup workers endpoints in Registry...";
             document.getElementById('lineLawToRegistry').classList.add('active');
             domNodes.Registry.classList.add('active');
             await sleep(1500);
             
-            addLog('Registry', `Đã trả về địa chỉ Tax Agent (http://localhost:10102) & Compliance Agent (http://localhost:10103)`);
+            addLog('Registry', `Đã trả về địa chỉ: Legal Worker (http://localhost:10104), Tax Worker (http://localhost:10102) & Compliance Worker (http://localhost:10103)`);
             domNodes.Registry.classList.remove('active');
             document.getElementById('lineLawToRegistry').classList.remove('active');
             await sleep(800);
 
-            // Step 5: Law Agent calls Tax & Compliance Agents in Parallel (Send API)
-            stepText.innerText = "Dispatching parallel requests to sub-agents (A2A)...";
+            // Step 5: Supervisor calls all workers in Parallel (Send API)
+            stepText.innerText = "Dispatching parallel requests to Legal, Tax & Compliance Workers (A2A)...";
             
+            let legalResult = "";
             let taxResult = "";
             let complianceResult = "";
             
             const promises = [];
             
+            if (legalOnline) {
+                document.getElementById('lineLawToLegal').classList.add('active-legal');
+                domNodes.Legal.classList.add('active-legal');
+                addLog('Legal', `[Worker] Nhận request. Trace: ${traceId}, Depth: 2. Tiến hành phân tích pháp lý hợp đồng & dân sự...`);
+                
+                promises.push(sleep(1800).then(() => {
+                    document.getElementById('lineLawToLegal').classList.remove('active-legal');
+                    domNodes.Legal.classList.remove('active-legal');
+                    legalResult = "Hành vi đơn phương chấm dứt hợp đồng trái pháp luật phát sinh trách nhiệm bồi thường thiệt hại thực tế theo Điều 360 Bộ luật Dân sự. Doanh nghiệp vi phạm có nghĩa vụ bồi thường các khoản lợi nhuận đáng lẽ được hưởng và các chi phí phát sinh nhằm ngăn ngừa thiệt hại cho bên bị vi phạm.";
+                    addLog('Legal', `[Worker] Hoàn thành phân tích hợp đồng. Phản hồi gửi về Supervisor Agent.`);
+                }));
+            } else {
+                document.getElementById('lineLawToLegal').classList.add('error');
+                addLog('Law', `[Supervisor] Không thể kết nối đến Legal Analysis Worker tại http://localhost:10104. Lỗi: Connection Refused.`, 'tag-error');
+                legalResult = "[Legal analysis unavailable: WinError 10061 - Connection refused]";
+            }
+
             if (taxOnline) {
                 document.getElementById('lineLawToTax').classList.add('active-tax');
                 domNodes.Tax.classList.add('active-tax');
-                addLog('Tax', `Nhận request. Trace: ${traceId}, Depth: 2. Tiến hành phân tích luật thuế...`);
+                addLog('Tax', `[Worker] Nhận request. Trace: ${traceId}, Depth: 2. Tiến hành phân tích luật thuế...`);
                 
                 promises.push(sleep(2000).then(() => {
                     document.getElementById('lineLawToTax').classList.remove('active-tax');
                     domNodes.Tax.classList.remove('active-tax');
-                    // Tax analysis constraints check (Exercise 5.3: <= 3 lines, bullet format)
                     taxResult = "- Vi phạm trốn thuế doanh nghiệp chịu phạt hành chính lên tới 3 lần số thuế trốn (Điều 17 Nghị định 125).\n" +
                                 "- Có thể bị truy cứu trách nhiệm hình sự về tội trốn thuế (Điều 200 Bộ luật Hình sự).\n" +
                                 "- Các cá nhân trực tiếp ký duyệt quyết định chịu trách nhiệm liên đới.";
-                    addLog('Tax', `Hoàn thành phân tích thuế (3 dòng gạch đầu dòng). Phản hồi gửi về Law Agent.`);
+                    addLog('Tax', `[Worker] Hoàn thành phân tích thuế. Phản hồi gửi về Supervisor Agent.`);
                 }));
             } else {
                 document.getElementById('lineLawToTax').classList.add('error');
-                addLog('Law', `Không thể kết nối đến Tax Agent tại http://localhost:10102. Lỗi: Connection Refused.`, 'tag-error');
+                addLog('Law', `[Supervisor] Không thể kết nối đến Tax Agent tại http://localhost:10102. Lỗi: Connection Refused.`, 'tag-error');
                 taxResult = "[Tax analysis unavailable: WinError 10061 - Connection refused]";
             }
             
             if (complianceOnline) {
                 document.getElementById('lineLawToCompliance').classList.add('active-compliance');
                 domNodes.Compliance.classList.add('active-compliance');
-                addLog('Compliance', `Nhận request. Trace: ${traceId}, Depth: 2. Tiến hành kiểm tra tuân thủ...`);
+                addLog('Compliance', `[Worker] Nhận request. Trace: ${traceId}, Depth: 2. Tiến hành kiểm tra tuân thủ...`);
                 
-                promises.push(sleep(2500).then(() => {
+                promises.push(sleep(2200).then(() => {
                     document.getElementById('lineLawToCompliance').classList.remove('active-compliance');
                     domNodes.Compliance.classList.remove('active-compliance');
                     complianceResult = "- Vi phạm nghĩa vụ công bố thông tin Ủy ban Chứng khoán (SEC/SSC) xử phạt hành chính.\n" +
                                        "- Các sai phạm về quản trị sổ sách có thể kích hoạt các biện pháp thanh tra kiểm toán SOX.\n" +
                                        "- Doanh nghiệp có nguy cơ bị đình chỉ giao dịch hoặc rút giấy phép hoạt động.";
-                    addLog('Compliance', `Hoàn thành phân tích tuân thủ. Phản hồi gửi về Law Agent.`);
+                    addLog('Compliance', `[Worker] Hoàn thành phân tích tuân thủ. Phản hồi gửi về Supervisor Agent.`);
                 }));
             } else {
                 document.getElementById('lineLawToCompliance').classList.add('error');
-                addLog('Law', `Không thể kết nối đến Compliance Agent tại http://localhost:10103. Lỗi: Connection Refused.`, 'tag-error');
+                addLog('Law', `[Supervisor] Không thể kết nối đến Compliance Agent tại http://localhost:10103. Lỗi: Connection Refused.`, 'tag-error');
                 complianceResult = "[Compliance analysis unavailable: WinError 10061 - Connection refused]";
             }
             
@@ -1281,11 +1336,11 @@
             await sleep(800);
             
             // Step 6: Law Agent Aggregate
-            stepText.innerText = "Law Agent synthesizing all specialist reports...";
+            stepText.innerText = "Supervisor Agent synthesizing all workers reports...";
             domNodes.Law.classList.add('active');
             await sleep(1500);
             
-            addLog('Law', `Hoàn thành tổng hợp (synthesize) phân tích. Gửi lại kết quả đầy đủ về Customer Agent.`);
+            addLog('Law', `[Supervisor] Hoàn thành tổng hợp (synthesize) phân tích từ 3 Workers. Gửi lại kết quả đầy đủ về Customer Agent.`);
             domNodes.Law.classList.remove('active');
             document.getElementById('lineCustomerToLaw').classList.remove('active');
             await sleep(800);
@@ -1301,14 +1356,22 @@
             addLog('System', `Hoàn thành xử lý request. Trace ID: "${traceId}"`, 'tag-system');
             
             // Build report HTML UI
-            buildReportUI(taxResult, complianceResult);
+            buildReportUI(legalResult, taxResult, complianceResult);
         }
 
-        function buildReportUI(taxText, complianceText) {
+        function buildReportUI(legalText, taxText, complianceText) {
             const reportCard = document.getElementById('reportCard');
             const reportContainer = document.getElementById('reportContainer');
             
-            // Build tax output with specific format display
+            // Build legal output
+            let legalHtml = '';
+            if (legalText.includes('Connection refused')) {
+                legalHtml = `<div class="report-sec-body" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.2)">${legalText}</div>`;
+            } else {
+                legalHtml = `<div class="report-sec-body">${legalText}</div>`;
+            }
+
+            // Build tax output
             let taxHtml = '';
             if (taxText.includes('Connection refused')) {
                 taxHtml = `<div class="report-sec-body" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.2)">${taxText}</div>`;
@@ -1335,16 +1398,14 @@
             reportContainer.innerHTML = `
                 <div class="report-section">
                     <div class="report-sec-title">
-                        ⚖️ 1. Phân Tích Pháp Lý Hợp Đồng (Law Agent)
+                        ⚖️ 1. Phân Tích Pháp Lý Hợp Đồng & Dân Sự (Legal Analysis Worker)
                     </div>
-                    <div class="report-sec-body">
-                        Hành vi đơn phương chấm dứt hợp đồng trái pháp luật phát sinh trách nhiệm bồi thường thiệt hại thực tế theo Điều 360 Bộ luật Dân sự. Doanh nghiệp vi phạm có nghĩa vụ bồi thường các khoản lợi nhuận đáng lẽ được hưởng và các chi phí phát sinh nhằm ngăn ngừa thiệt hại cho bên bị vi phạm.
-                    </div>
+                    ${legalHtml}
                 </div>
                 
                 <div class="report-section">
                     <div class="report-sec-title report-sec-title-tax">
-                        💵 2. Phân Tích Nghĩa Vụ Thuế (Tax Agent)
+                        💵 2. Phân Tích Nghĩa Vụ Thuế (Tax Worker)
                     </div>
                     ${taxHtml}
                 </div>
@@ -1357,13 +1418,14 @@
                 </div>
                 
                 <div class="disclaimer">
-                    Khuyến cáo: Bản báo cáo tổng hợp pháp lý này chỉ mang tính chất tham khảo giáo trình. Vui lòng tham vấn luật sư có giấy phép hành nghề trước khi ra quyết định kinh doanh.
+                    Khuyến cáo: Bản báo cáo tổng hợp pháp lý này được điều phối bởi Supervisor Agent theo kiến trúc Supervisor-Workers Pattern. Vui lòng tham vấn luật sư có giấy phép hành nghề trước khi ra quyết định kinh doanh.
                 </div>
             `;
             
             reportCard.style.display = 'block';
             reportCard.scrollIntoView({ behavior: 'smooth' });
         }
+
 
         // ==========================================
         // 2. LIVE MODE ENGINE (Direct Localhost CORS Fetch)

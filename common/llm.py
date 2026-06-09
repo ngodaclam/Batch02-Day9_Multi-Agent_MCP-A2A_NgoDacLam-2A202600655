@@ -95,8 +95,70 @@ def get_llm() -> ChatOpenAI:
                     message = AIMessage(content="", tool_calls=[tool_call])
                     return ChatResult(generations=[ChatGeneration(message=message)])
 
-                # Specialist responses - Check aggregate/synthesise first to avoid false matches
-                if "synthesising" in user_content.lower() or "synthesise" in user_content.lower():
+                # --- Supervisor Agent: Routing decision ---
+                # Detect Supervisor classify_question node (needs_legal, needs_tax, needs_compliance)
+                if '"needs_legal"' in user_content and "Supervisor Agent" in user_content:
+                    message = AIMessage(content='{"needs_legal": true, "needs_tax": true, "needs_compliance": true}')
+                    return ChatResult(generations=[ChatGeneration(message=message)])
+
+                # --- Supervisor Agent: Synthesize worker results ---
+                if "Supervisor Agent synthesising" in user_content or "specialist worker analyses" in user_content:
+                    message = AIMessage(
+                        content="## Comprehensive Legal Analysis (Supervisor-Workers Pattern)\n\n"
+                                "### 1. Contract & Civil Law Analysis (Legal Worker)\n"
+                                "Breaching the contract triggers liability for compensatory, expectation, "
+                                "and consequential damages under UCC Article 2 and common law principles.\n\n"
+                                "### 2. Tax Law Analysis (Tax Worker)\n"
+                                "- Evasion of corporate taxes leads to severe civil and criminal penalties under IRS § 7201.\n"
+                                "- Company faces back-taxes plus 75% fraud penalty under IRC § 6663.\n"
+                                "- Officers directing the evasion are personally liable to criminal prosecution.\n\n"
+                                "### 3. Regulatory Compliance Analysis (Compliance Worker)\n"
+                                "- SEC regulations breach results in strict civil fines and SOX audit sanctions.\n"
+                                "- Personal officer liability applies for signing off on false financial records.\n"
+                                "- Investigation may be referred to DOJ for potential criminal prosecution.\n\n"
+                                "### Key Risks & Recommended Actions\n"
+                                "1. **Immediate**: Engage outside counsel to assess breach exposure and initiate settlement talks.\n"
+                                "2. **Tax**: Voluntary disclosure to IRS to mitigate criminal liability.\n"
+                                "3. **Compliance**: Implement a robust corporate compliance program as a mitigating factor.\n\n"
+                                "Disclaimer: This analysis is for educational purposes. Consult licensed attorneys for specific cases."
+                    )
+                    return ChatResult(generations=[ChatGeneration(message=message)])
+
+                # --- Legacy routing (for backward compatibility with old check_routing) ---
+                if "Reply with ONLY valid JSON" in user_content and "needs_tax" in user_content:
+                    message = AIMessage(content='{"needs_tax": true, "needs_compliance": true}')
+                    return ChatResult(generations=[ChatGeneration(message=message)])
+
+                # --- Legal Worker: Contract law specialist response ---
+                if "corporate litigation attorney" in user_content.lower() or "contract law" in user_content.lower():
+                    message = AIMessage(
+                        content="Breaching the contract triggers liability for compensatory, expectation, "
+                                "and consequential damages under UCC Article 2 and common law principles. "
+                                "Key considerations include: (1) Measure of damages under Hadley v Baxendale — "
+                                "foreseeability at time of contracting; (2) Duty to mitigate losses; "
+                                "(3) Potential for specific performance if damages are inadequate; "
+                                "(4) Piercing the corporate veil if the entity was used to perpetrate fraud."
+                    )
+                    return ChatResult(generations=[ChatGeneration(message=message)])
+
+                # --- Tax Worker response ---
+                if "tax" in user_content.lower() and "senior tax attorney" in user_content.lower():
+                    message = AIMessage(
+                        content="- Evasion of corporate taxes leads to severe civil and criminal penalties under IRS § 7201.\n"
+                                "- Company faces back-taxes plus 75% fraud penalty under IRC § 6663.\n"
+                                "- Officers directing the evasion are personally liable to criminal prosecution."
+                    )
+
+                # --- Compliance Worker response ---
+                elif "compliance" in user_content.lower() and "regulatory compliance" in user_content.lower():
+                    message = AIMessage(
+                        content="- SEC regulations breach results in strict civil fines and SOX audit sanctions.\n"
+                                "- Personal officer liability applies for signing off on false financial records.\n"
+                                "- Investigation may be referred to DOJ for potential criminal prosecution."
+                    )
+
+                # --- Legacy aggregate/synthesise (for old Law Agent) ---
+                elif "synthesising" in user_content.lower() or "synthesise" in user_content.lower():
                     message = AIMessage(
                         content="## Synthesized Legal Analysis\n\n"
                                 "### 1. Contract Breach (Law Agent)\n"
@@ -110,25 +172,6 @@ def get_llm() -> ChatOpenAI:
                                 "- Personal officer liability applies for signing off on false financial records.\n"
                                 "- Investigation may be referred to DOJ for potential criminal prosecution.\n\n"
                                 "Disclaimer: This analysis is for educational purposes. Consult a licensed attorney for specific cases."
-                    )
-                elif "Reply with ONLY valid JSON" in user_content or "needs_tax" in user_content:
-                    message = AIMessage(content='{"needs_tax": true, "needs_compliance": true}')
-                    return ChatResult(generations=[ChatGeneration(message=message)])
-                elif "tax" in user_content.lower() and "senior tax attorney" in user_content.lower():
-                    message = AIMessage(
-                        content="- Evasion of corporate taxes leads to severe civil and criminal penalties under IRS § 7201.\n"
-                                "- Company faces back-taxes plus 75% fraud penalty under IRC § 6663.\n"
-                                "- Officers directing the evasion are personally liable to criminal prosecution."
-                    )
-                elif "compliance" in user_content.lower() and "regulatory compliance" in user_content.lower():
-                    message = AIMessage(
-                        content="- SEC regulations breach results in strict civil fines and SOX audit sanctions.\n"
-                                "- Personal officer liability applies for signing off on false financial records.\n"
-                                "- Investigation may be referred to DOJ for potential criminal prosecution."
-                    )
-                elif "corporate litigation attorney" in user_content.lower():
-                    message = AIMessage(
-                        content="Breaching the contract triggers liability for compensatory, expectation, and consequential damages."
                     )
                 else:
                     message = AIMessage(content=f"Mock response for: {last_user_message or user_content}")

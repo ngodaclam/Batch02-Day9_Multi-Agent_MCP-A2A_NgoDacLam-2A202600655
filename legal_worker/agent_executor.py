@@ -1,30 +1,33 @@
-"""Supervisor Agent — AgentExecutor bridge between A2A SDK and LangGraph StateGraph.
-
-The Supervisor Agent orchestrates specialist workers (Legal, Tax, Compliance)
-using the Supervisor-Workers pattern. It classifies incoming questions,
-dispatches workers in parallel, and synthesizes results.
-"""
+"""Legal Analysis Worker — AgentExecutor bridge between A2A SDK and LangGraph."""
 
 from __future__ import annotations
 
 import logging
 from uuid import uuid4
 
+from langchain_core.messages import HumanMessage
+
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import Part, TextPart
 
-from law_agent.graph import create_graph
+from legal_worker.graph import create_graph
 
 logger = logging.getLogger(__name__)
 
-# Build graph once at module load
-_graph = create_graph()
+_graph = None
 
 
-class SupervisorAgentExecutor(AgentExecutor):
-    """Bridges A2A RequestContext to the Supervisor StateGraph agent."""
+def _get_graph():
+    global _graph
+    if _graph is None:
+        _graph = create_graph()
+    return _graph
+
+
+class LegalWorkerExecutor(AgentExecutor):
+    """Bridges A2A RequestContext to the Legal Analysis LangGraph agent."""
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         question = self._extract_question(context)
@@ -35,7 +38,7 @@ class SupervisorAgentExecutor(AgentExecutor):
         depth = int(metadata.get("delegation_depth", 0))
 
         logger.info(
-            "SupervisorAgent executing | task=%s context=%s trace=%s depth=%d",
+            "LegalWorker executing | task=%s context=%s trace=%s depth=%d",
             task_id, context_id, trace_id, depth,
         )
 
@@ -44,48 +47,33 @@ class SupervisorAgentExecutor(AgentExecutor):
         await updater.start_work()
 
         try:
-            result = await _graph.ainvoke(
-                {
-                    "question": question,
-                    "context_id": context_id,
-                    "trace_id": trace_id,
-                    "delegation_depth": depth,
-                    "needs_legal": False,
-                    "needs_tax": False,
-                    "needs_compliance": False,
-                    "legal_result": "",
-                    "tax_result": "",
-                    "compliance_result": "",
-                    "final_answer": "",
-                },
+            result = await _get_graph().ainvoke(
+                {"messages": [HumanMessage(content=question)]},
                 config={"configurable": {"thread_id": context_id}},
             )
 
-            answer = result.get("final_answer", "")
-            if not answer:
-                # Fallback: combine individual worker results
-                parts = []
-                if result.get("legal_result"):
-                    parts.append(result["legal_result"])
-                if result.get("tax_result"):
-                    parts.append(result["tax_result"])
-                if result.get("compliance_result"):
-                    parts.append(result["compliance_result"])
-                answer = "\n\n".join(parts) if parts else ""
+            # Extract the last AI message
+            answer = ""
+            for msg in reversed(result.get("messages", [])):
+                if hasattr(msg, "content") and msg.content:
+                    if not isinstance(msg, HumanMessage):
+                        answer = msg.content
+                        break
+
             if not answer:
                 answer = "I was unable to generate a legal analysis at this time."
 
             await updater.add_artifact(
                 parts=[Part(root=TextPart(text=answer))],
-                name="supervisor_analysis",
+                name="legal_analysis",
             )
             await updater.complete()
 
         except Exception as exc:
-            logger.exception("SupervisorAgent execution error: %s", exc)
+            logger.exception("LegalWorker execution error: %s", exc)
             await updater.failed(
                 updater.new_agent_message(
-                    parts=[Part(root=TextPart(text=f"Supervisor analysis failed: {exc}"))]
+                    parts=[Part(root=TextPart(text=f"Legal analysis failed: {exc}"))]
                 )
             )
 
